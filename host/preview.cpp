@@ -107,8 +107,8 @@ State SampleState() {
     s.battery = 76; s.charging = false; s.pluggedIn = false;
     s.btReady = true; s.autoconnect = true; s.hpConnected = true; s.hpName = "WH-1000XM5";
     s.paired = {{{1}, "WH-1000XM5", true}, {{2}, "AirPods Pro", false}, {{3}, "JBL Flip 6", false}};
-    s.wifiReady = true; s.wifiOn = true; s.wifiOnline = true; s.ssid = "Velizard-5G";
-    s.wifiSignal = 3; s.ip = "10.0.0.99";
+    s.wifiReady = true; s.wifiOn = true; s.wifiOnline = true; s.ssid = "HomeNetwork-5G";
+    s.wifiSignal = 3; s.ip = "192.168.1.42";
     s.sysclkReady = true; s.boost = false; s.cpuMHz = 1020; s.gpuMHz = 384; s.memMHz = 1600;
     s.socTemp = 44; s.pcbTemp = 38; s.powerMw = -5230; s.powerKnown = true;
     s.chargeCtlReady = true; s.chargingEnabled = true;

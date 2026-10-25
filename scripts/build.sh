@@ -29,3 +29,8 @@ cp quick-settings.ovl dist/sd/switch/.overlays/ovlmenu.ovl
 unzip -q "$LOADER" 'atmosphere/*' -d dist/sd
 unzip -q "$SYSCLK" 'atmosphere/*' 'switch/.overlays/*' -d dist/sd
 find dist/sd -type f | sort
+
+# Release archive: extract to the SD card root.
+VERSION=$(sed -n 's/^APP_VERSION[[:space:]]*:=[[:space:]]*//p' Makefile)
+(cd dist/sd && zip -qrX "../quick-settings-$VERSION.zip" atmosphere switch)
+shasum -a 256 "dist/quick-settings-$VERSION.zip"
