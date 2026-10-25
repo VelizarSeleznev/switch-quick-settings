@@ -5,6 +5,7 @@
 // Layer, focus and input handling follow libtesla (WerWolv, GPL-2.0).
 #include <switch.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstdarg>
 #include <cstdio>
@@ -138,7 +139,7 @@ struct Screen {
     void Present(Canvas& cv, Ui& ui) {
         void* buf = framebufferBegin(&fb, nullptr);
         cv.Bind(static_cast<uint16_t*>(buf), true);
-        ui.Draw();
+        ui.Present(cv);
         eventWait(&vsync, UINT64_MAX);
         framebufferEnd(&fb);
     }
@@ -150,16 +151,18 @@ struct Shared {
     std::mutex mutex;
     // Written by the input thread.
     u64 keysDown = 0, keysHeld = 0;
-    Touch touch;
+    Touch touch;                // latest sample; when released it keeps the last position
+    // Press and release transitions since the main thread last looked, so a tap
+    // shorter than one frame is not lost.
+    Touch touchEvents[16];
+    int touchEventCount = 0;
     // Requests to the main thread.
     UEvent openEvent;
     Side openSide = Side::Left;
     bool openTracking = false;
-    std::atomic<bool> open{false};         // panel currently shown
+    std::atomic<bool> open{false};          // panel currently shown
     std::atomic<bool> closeRequest{false};  // combo pressed while open
     std::atomic<bool> hideNow{false};       // HOME / power: hide without animation
-    std::atomic<bool> screenOff{false};
-    UEvent wakeEvent;                       // any input while the screen is off
     std::atomic<bool> running{true};
     u64 combo = HidNpadButton_L | HidNpadButton_Down | HidNpadButton_StickR;
 };
@@ -264,31 +267,31 @@ void InputThread(void*) {
 
     EdgeSwipe swipe;
     bool wasDown = false;
+    float lastX = 0, lastY = 0;
     while (g.running) {
         padUpdate(&pad);
         u64 down = padGetButtonsDown(&pad), held = padGetButtons(&pad);
         HidTouchScreenState ts = {};
         bool touching = hidGetTouchScreenStates(&ts, 1) && ts.count > 0;
-        float tx = touching ? float(ts.touches[0].x) : 0, ty = touching ? float(ts.touches[0].y) : 0;
+        if (touching) {
+            lastX = float(ts.touches[0].x);
+            lastY = float(ts.touches[0].y);
+        }
         {
             std::scoped_lock lock(g.mutex);
             g.keysDown |= down;
             g.keysHeld = held;
-            g.touch = {touching, tx, ty};
+            g.touch = {touching, lastX, lastY};
+            if (touching != wasDown && g.touchEventCount < 16) g.touchEvents[g.touchEventCount++] = g.touch;
         }
 
-        if (g.screenOff) {
-            if (down || (touching && !wasDown)) {
-                g.screenOff = false;
-                ueventSignal(&g.wakeEvent);
-            }
-        } else if ((held & g.combo) == g.combo && (down & g.combo)) {
+        if ((held & g.combo) == g.combo && (down & g.combo)) {
             if (g.open) g.closeRequest = true;
             else {
                 g.openTracking = false;
                 ueventSignal(&g.openEvent);
             }
-        } else if (!g.open && swipe.Feed(touching, tx, ty, wasDown)) {
+        } else if (!g.open && swipe.Feed(touching, lastX, lastY, wasDown)) {
             g.openSide = swipe.side;
             g.openTracking = true;
             ueventSignal(&g.openEvent);
@@ -296,14 +299,10 @@ void InputThread(void*) {
         wasDown = touching;
 
         s32 idx = -1;
-        Result rc = waitMulti(&idx, 16'000'000, waiterForEvent(&home), waiterForEvent(&power));
+        Result rc = waitMulti(&idx, 8'000'000, waiterForEvent(&home), waiterForEvent(&power));
         if (R_SUCCEEDED(rc)) {
             eventClear(idx == 0 ? &home : &power);
             if (g.open) g.hideNow = true;
-            if (g.screenOff) {
-                g.screenOff = false;
-                ueventSignal(&g.wakeEvent);
-            }
         }
     }
     eventClose(&home);
@@ -362,10 +361,12 @@ void __appInit(void) {
         g_services.bt = R_SUCCEEDED(btmsysInitialize());
         g_services.nifm = R_SUCCEEDED(nifmInitialize(NifmServiceType_Admin));
         g_services.lbl = R_SUCCEEDED(lblInitialize());
+        g_services.setsys = R_SUCCEEDED(setsysInitialize());
     });
 }
 
 void __appExit(void) {
+    if (g_services.setsys) setsysExit();
     if (g_services.lbl) lblExit();
     if (g_services.nifm) nifmExit();
     if (g_services.bt) btmsysExit();
@@ -387,17 +388,20 @@ int main(int argc, char** argv) {
 
     LoadCombo();
     ueventCreate(&g.openEvent, true);
-    ueventCreate(&g.wakeEvent, true);
 
     Screen screen;
     screen.Init();
     Canvas canvas(kFbW, kFbH);
     SwitchSystem sys;
-    Ui ui(sys, canvas, SystemIsRussian());
-    Log("start: HOS %u.%u.%u, skipCombo=%d, combo=0x%llx, services time=%d psm=%d apm=%d bt=%d nifm=%d lbl=%d",
+    Ui ui(sys, SystemIsRussian());
+    // Fill the state once so the first open has something to show right away.
+    sys.Refresh(ui.state());
+    sys.ListOverlays(ui.state());
+    Log("start: HOS %u.%u.%u, skipCombo=%d, combo=0x%llx, services time=%d psm=%d apm=%d bt=%d nifm=%d lbl=%d "
+        "setsys=%d",
         HOSVER_MAJOR(hosversionGet()), HOSVER_MINOR(hosversionGet()), HOSVER_MICRO(hosversionGet()), openNow,
         (unsigned long long)g.combo, g_services.time, g_services.psm, g_services.apm, g_services.bt, g_services.nifm,
-        g_services.lbl);
+        g_services.lbl, g_services.setsys);
 
     Thread input;
     threadCreate(&input, InputThread, nullptr, nullptr, 0x4000, 0x2c, -2);
@@ -420,6 +424,7 @@ int main(int argc, char** argv) {
         {
             std::scoped_lock lock(g.mutex);
             g.keysDown = 0;
+            g.touchEventCount = 0;
         }
         RequestForeground(true);
         screen.Place(side);
@@ -428,11 +433,16 @@ int main(int argc, char** argv) {
 
         while (true) {
             Input in;
+            Touch events[16];
+            int eventCount;
             {
                 std::scoped_lock lock(g.mutex);
                 in.down = g.keysDown;
                 in.held = g.keysHeld;
                 in.touch = g.touch;
+                eventCount = g.touchEventCount;
+                std::copy(g.touchEvents, g.touchEvents + eventCount, events);
+                g.touchEventCount = 0;
                 g.keysDown = 0;
             }
             in.now = Now();
@@ -441,9 +451,14 @@ int main(int argc, char** argv) {
                 break;
             }
             if (g.closeRequest.exchange(false)) ui.Close(in.now);
+            // Every press/release first (a quick tap is both within one frame), then the current position.
+            for (int i = 0; i < eventCount; i++) {
+                ui.Update({i == 0 ? in.down : 0, in.held, events[i], in.now});
+                if (i == 0) in.down = 0;
+            }
             bool alive = ui.Update(in);
-            if (ui.NeedsDraw()) screen.Present(canvas, ui);
-            else svcSleepThread(kSec / 60);
+            if (ui.NeedsPresent()) screen.Present(canvas, ui);
+            else svcSleepThread(kSec / 120);
             if (!alive) break;
         }
         g.open = false;
@@ -453,15 +468,6 @@ int main(int argc, char** argv) {
         Ui::Request request = ui.TakeRequest(&launch);
         Log("closed%s, request %d", g.hideNow ? " by HOME/power" : "", int(request));
         switch (request) {
-            case Ui::Request::ScreenOff:
-                // Keep input away from the game until the screen is back on.
-                ueventClear(&g.wakeEvent);
-                g.screenOff = true;
-                sys.ScreenOff();
-                waitSingle(waiterForUEvent(&g.wakeEvent), UINT64_MAX);
-                sys.ScreenOn();
-                svcSleepThread(kSec / 5);  // swallow the button that woke it
-                break;
             case Ui::Request::Launch:
                 SaveSide(ui.side());
                 sys.LaunchOverlay(launch);

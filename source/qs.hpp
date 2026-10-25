@@ -39,15 +39,17 @@ struct State {
 
     // Bluetooth headphones.
     bool btReady = false;
+    bool radioOn = true;        // Bluetooth radio (off in airplane mode)
     bool hpConnected = false, hpConnecting = false;
     std::string hpName;         // connected device, or the remembered target
     bool hpPaused = false;      // bt-autoconnect told not to reconnect
     bool autoconnect = false;   // bt-autoconnect sysmodule installed
     std::vector<AudioDevice> paired;
 
-    // Wi-Fi.
+    // Wi-Fi and airplane mode (Wi-Fi and Bluetooth radio both off).
     bool wifiReady = false, wifiOn = false, wifiOnline = false;
     std::string ssid;
+    bool airplane = false;
 
     // sys-clk.
     bool sysclkReady = false, boost = false;
@@ -70,19 +72,23 @@ struct State {
 class System {
 public:
     virtual ~System() = default;
-    // Fast status poll (clock, battery, connections, clocks). Called a few times per second while open.
+    // Status poll (connections, clocks, sensors, brightness). Called every
+    // half second while the panel is open and nothing is moving.
     virtual void Refresh(State& s) = 0;
-    // Slower lists: paired audio devices, other overlays. Called when the panel opens.
-    virtual void RefreshLists(State& s) = 0;
+    // Clock and battery only: cheap, called as the panel opens.
+    virtual void RefreshClock(State& s) = 0;
+    // Lists, read when their page opens: paired audio devices, other overlays.
+    virtual void ListDevices(State& s) = 0;
+    virtual void ListOverlays(State& s) = 0;
 
     virtual void SetHeadphones(State& s, bool on) = 0;     // on: connect target; off: disconnect + pause autoconnect
     virtual void ToggleDevice(State& s, const AudioDevice& d) = 0;
     virtual void SetWifi(State& s, bool on) = 0;
+    virtual void SetAirplane(State& s, bool on) = 0;
     virtual void SetBoost(State& s, bool on) = 0;
     virtual void SetChargingEnabled(State& s, bool on) = 0;
     virtual void SetBrightness(State& s, float v, bool commit) = 0;
     virtual void SetAutoBrightness(State& s, bool on) = 0;
-    virtual void ScreenOff() = 0;
     virtual void Reboot() = 0;
     virtual void PowerOff() = 0;
     virtual void LaunchOverlay(const OverlayEntry& o) = 0;

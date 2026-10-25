@@ -127,7 +127,7 @@ void SwitchSystem::ConnectSysclk() {
     });
 }
 
-void SwitchSystem::Refresh(State& s) {
+void SwitchSystem::RefreshClock(State& s) {
     if (g_services.time) {
         u64 ts = 0;
         TimeCalendarTime cal;
@@ -153,6 +153,10 @@ void SwitchSystem::Refresh(State& s) {
         s.chargingEnabled = enabled;
         s.charging = s.pluggedIn && enabled && s.battery < 100;
     }
+}
+
+void SwitchSystem::Refresh(State& s) {
+    RefreshClock(s);
 
     if (g_services.apm) {
         ApmPerformanceMode mode = ApmPerformanceMode_Normal;
@@ -163,6 +167,9 @@ void SwitchSystem::Refresh(State& s) {
     s.autoconnect = Exists(kAutoconnectNsp);
     s.hpPaused = Exists(kPauseFlag);
     if (g_services.bt) {
+        bool radio = true;
+        if (R_SUCCEEDED(btmsysGetRadioOnOff(&radio))) s.radioOn = radio;
+
         BtmAudioDevice devs[4];
         int n = ConnectedDevices(devs, 4);
         s.hpConnected = n > 0;
@@ -202,6 +209,7 @@ void SwitchSystem::Refresh(State& s) {
             s.ssid.assign(w.ssid, n);
         }
     }
+    s.airplane = s.wifiReady && s.btReady && !s.wifiOn && !s.radioOn;
 
     ConnectSysclk();
     s.sysclkReady = false;
@@ -233,7 +241,7 @@ void SwitchSystem::Refresh(State& s) {
     }
 }
 
-void SwitchSystem::RefreshLists(State& s) {
+void SwitchSystem::ListDevices(State& s) {
     s.paired.clear();
     if (g_services.bt) {
         static BtmAudioDevice devs[10];
@@ -247,7 +255,10 @@ void SwitchSystem::RefreshLists(State& s) {
             }
         }
     }
+    Refresh(s);  // marks the connected one
+}
 
+void SwitchSystem::ListOverlays(State& s) {
     s.overlays.clear();
     if (DIR* dir = opendir(kOverlayDir)) {
         while (dirent* e = readdir(dir)) {
@@ -264,7 +275,6 @@ void SwitchSystem::RefreshLists(State& s) {
         std::sort(s.overlays.begin(), s.overlays.end(),
                   [](const OverlayEntry& a, const OverlayEntry& b) { return a.name < b.name; });
     }
-    Refresh(s);
 }
 
 void SwitchSystem::SetHeadphones(State& s, bool on) {
@@ -316,6 +326,22 @@ void SwitchSystem::SetWifi(State& s, bool on) {
     if (g_services.nifm && R_SUCCEEDED(nifmSetWirelessCommunicationEnabled(on))) s.wifiOn = on;
 }
 
+// Airplane mode: Wi-Fi and the Bluetooth radio off, both also stored in
+// system settings like the HOME menu's own flight mode toggle does.
+void SwitchSystem::SetAirplane(State& s, bool on) {
+    if (!g_services.nifm || !g_services.bt) return;
+    Result wifi = nifmSetWirelessCommunicationEnabled(!on);
+    Result radio = on ? btmsysDisableRadio() : btmsysEnableRadio();
+    if (g_services.setsys) {
+        setsysSetWirelessLanEnableFlag(!on);
+        setsysSetBluetoothEnableFlag(!on);
+    }
+    Log("airplane %s: wifi rc=0x%X radio rc=0x%X", on ? "on" : "off", wifi, radio);
+    if (R_SUCCEEDED(wifi)) s.wifiOn = !on;
+    if (R_SUCCEEDED(radio)) s.radioOn = !on;
+    s.airplane = !s.wifiOn && !s.radioOn;
+}
+
 void SwitchSystem::SetBoost(State& s, bool on) {
     if (!sysclk_) return;
     for (int m = 0; m < SysClkModule_EnumMax; m++) {
@@ -352,14 +378,6 @@ void SwitchSystem::SetAutoBrightness(State& s, bool on) {
     if (!g_services.lbl) return;
     if (R_SUCCEEDED(on ? lblEnableAutoBrightnessControl() : lblDisableAutoBrightnessControl())) s.autoBrightness = on;
     lblSaveCurrentSetting();
-}
-
-void SwitchSystem::ScreenOff() {
-    if (g_services.lbl) lblSwitchBacklightOff(0);
-}
-
-void SwitchSystem::ScreenOn() {
-    if (g_services.lbl) lblSwitchBacklightOn(0);
 }
 
 static void Shutdown(bool reboot) {

@@ -56,7 +56,8 @@ public:
     int H() const { return h_; }
 
     void Clear();
-    void SetOpacity(float o) { opacity_ = o; }
+    // Copies a linear w*h image shifted right by dx pixels; uncovered pixels become transparent.
+    void Blit(const uint16_t* src, int dx);
     void SetClip(int x, int y, int w, int h);
     void ResetClip() { SetClip(0, 0, w_, h_); }
 
@@ -82,7 +83,6 @@ private:
     int w_, h_;
     uint16_t* px_ = nullptr;
     bool swizzled_ = false;
-    float opacity_ = 1.f;
     int cx0_ = 0, cy0_ = 0, cx1_ = 0, cy1_ = 0;  // clip, exclusive max
 };
 

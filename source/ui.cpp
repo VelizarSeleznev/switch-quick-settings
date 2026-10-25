@@ -21,27 +21,29 @@ constexpr float kStatsY = 440, kStatsH = 124;
 constexpr float kPowerH = 52, kPowerY = kPH - kPad - kPowerH;
 constexpr float kRowH = 60, kRowStep = 68;
 constexpr int kMaxRows = 6;
+constexpr double kRefreshEvery = 0.5;
 
-// Material 3 dark palette, tuned for the 4-bit layer.
-constexpr Color kPanel = Hex(0x141519, 0xEE);
-constexpr Color kBorder = Hex(0xFFFFFF, 0x1A);
-constexpr Color kSurface = Hex(0x2B2D33);
-constexpr Color kSurfaceLow = Hex(0x1F2025);
-constexpr Color kOnSurface = Hex(0xE6E4EA);
-constexpr Color kMuted = Hex(0xA4A7B1);
-constexpr Color kPrimary = Hex(0xA8C7FA);
-constexpr Color kOnPrimary = Hex(0x0B2A5C);
-constexpr Color kOnPrimaryMuted = Hex(0x2D4C80);
-constexpr Color kDanger = Hex(0xF2B8B5);
-constexpr Color kOnDanger = Hex(0x601410);
-constexpr Color kFocus = Hex(0xFFFFFF);
-constexpr Color kPressed = Hex(0xFFFFFF, 0x22);
-constexpr Color kWarn = Hex(0xFFB4AB);
+// "Pastel Dream" palette: the cream, rose and cyan of the installed home menu theme.
+constexpr Color kPanel = Hex(0xFFF8F3);
+constexpr Color kBorder = Hex(0xEDB8C3);
+constexpr Color kSurface = Hex(0xF2D8D5);
+constexpr Color kSurfaceLow = Hex(0xF9EAE6);
+constexpr Color kOnSurface = Hex(0x4A3238);
+constexpr Color kMuted = Hex(0x8F747B);
+constexpr Color kPrimary = Hex(0xF29BB2);
+constexpr Color kOnPrimary = Hex(0x55162A);
+constexpr Color kOnPrimaryMuted = Hex(0x7E3A4E);
+constexpr Color kDanger = Hex(0xE2667A);
+constexpr Color kOnDanger = Hex(0xFFFFFF);
+constexpr Color kFocus = Hex(0x4FBFD8);
+constexpr Color kPressed = Hex(0x5A1A2D, 0x1C);
+constexpr Color kWarn = Hex(0xD9475E);
+constexpr Color kKeyCap = Hex(0xEBD5D0);
 
 // Material Symbols code points (subset built by tools/make_fonts.py).
 namespace icon {
 constexpr uint32_t Headphones = 0xF01F, HeadsetOff = 0xE33A, Wifi = 0xE63E, WifiOff = 0xE648;
-constexpr uint32_t Speed = 0xE9E4, TvOff = 0xE647, Charging = 0xE1A3, Light = 0xE518, Auto = 0xE1AB;
+constexpr uint32_t Speed = 0xE9E4, Flight = 0xE539, Charging = 0xE1A3, Light = 0xE518, Auto = 0xE1AB;
 constexpr uint32_t Power = 0xF8C7, Restart = 0xF053, Chevron = 0xE5CC, Back = 0xE5C4, Layers = 0xE53B;
 constexpr uint32_t Bolt = 0xEA0B;
 }  // namespace icon
@@ -50,8 +52,8 @@ struct Text {
     const char* weekdays[7];
     const char* months[12];
     bool dayFirst;
-    const char *headphones, *off, *connecting, *wifi, *noNetwork, *boost, *needSysclk, *screen, *turnOff,
-        *handheldOnly, *chargePause, *notCharging, *charging, *pluggedIn, *onBattery, *overlays, *count, *none,
+    const char *headphones, *on, *off, *connecting, *btOff, *wifi, *noNetwork, *airplane, *handheldOnly, *boost,
+        *needSysclk, *chargePause, *notCharging, *charging, *pluggedIn, *onBattery, *overlays, *count, *none,
         *reboot, *powerOff, *again, *devices, *noDevices, *autoOn, *autoPaused, *connected, *noOverlays, *select,
         *more, *close, *mhz, *soc, *pcb, *draw, *charge, *watt, *noSysclk, *noBt;
 };
@@ -61,11 +63,11 @@ const Text kRu = {
     {"января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября",
      "декабря"},
     true,
-    "Наушники", "Выкл.", "Подключение…", "Wi-Fi", "Нет сети", "Разгон", "Нужен sys-clk", "Экран", "Выключить",
-    "Только в руках", "Пауза зарядки", "Не заряжается", "Заряжается", "Питание есть", "От батареи", "Оверлеи",
-    "%d шт.", "Нет", "Перезагрузка", "Выключение", "Ещё раз", "Сопряжённые устройства", "Нет сопряжённых наушников",
-    "Автоподключение включено", "Автоподключение на паузе", "Подключены", "Других оверлеев нет", "выбрать",
-    "подробнее", "закрыть", "МГц", "SoC", "Плата", "Расход", "Заряд", "Вт",
+    "Наушники", "Вкл.", "Выкл.", "Подключение…", "Bluetooth выкл.", "Wi-Fi", "Нет сети", "Режим полёта",
+    "Только в руках", "Разгон", "Нужен sys-clk", "Пауза зарядки", "Не заряжается", "Заряжается", "Питание есть",
+    "От батареи", "Оверлеи", "%d шт.", "Нет", "Перезагрузка", "Выключение", "Ещё раз", "Сопряжённые устройства",
+    "Нет сопряжённых наушников", "Автоподключение включено", "Автоподключение на паузе", "Подключены",
+    "Других оверлеев нет", "выбрать", "подробнее", "закрыть", "МГц", "SoC", "Плата", "Расход", "Заряд", "Вт",
     "sys-clk не запущен: разгон и датчики недоступны", "Bluetooth недоступен",
 };
 
@@ -74,12 +76,12 @@ const Text kEn = {
     {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November",
      "December"},
     false,
-    "Headphones", "Off", "Connecting…", "Wi-Fi", "No network", "Boost", "Needs sys-clk", "Screen", "Turn off",
-    "Handheld only", "Pause charging", "Not charging", "Charging", "Plugged in", "On battery", "Overlays",
-    "%d", "None", "Restart", "Power off", "Tap again", "Paired devices", "No paired headphones",
-    "Auto-connect on", "Auto-connect paused", "Connected", "No other overlays", "select",
+    "Headphones", "On", "Off", "Connecting…", "Bluetooth off", "Wi-Fi", "No network", "Airplane mode",
+    "Handheld only", "Overclock", "Needs sys-clk", "Pause charging", "Not charging", "Charging", "Plugged in",
+    "On battery", "Overlays", "%d", "None", "Restart", "Power off", "Tap again", "Paired devices",
+    "No paired headphones", "Auto-connect on", "Auto-connect paused", "Connected", "No other overlays", "select",
     "details", "close", "MHz", "SoC", "Board", "Draw", "Charge", "W",
-    "sys-clk is not running: boost and sensors unavailable", "Bluetooth unavailable",
+    "sys-clk is not running: overclock and sensors unavailable", "Bluetooth unavailable",
 };
 
 inline float EaseOut(float t) { return 1 - (1 - t) * (1 - t) * (1 - t); }
@@ -88,8 +90,10 @@ inline float EaseOut(float t) { return 1 - (1 - t) * (1 - t) * (1 - t); }
 
 static const Text* T = &kEn;
 
-Ui::Ui(System& sys, Canvas& canvas, bool russian) : sys_(sys), cv_(canvas), ru_(russian) {
+Ui::Ui(System& sys, bool russian)
+    : sys_(sys), buf_(size_t(kLayerW) * kLayerH), cv_(kLayerW, kLayerH), ru_(russian) {
     T = ru_ ? &kRu : &kEn;
+    cv_.Bind(buf_.data(), false);
 }
 
 // ------------------------------------------------------------ open / close
@@ -104,9 +108,9 @@ void Ui::Open(Side side, bool tracking, double now) {
     pressed_ = kNone;
     request_ = Request::None;
     onAnim_.clear();
-    sys_.RefreshLists(st_);
-    sys_.Refresh(st_);
-    lastRefresh_ = now;
+    // Only the cheap part now; the full poll runs once the panel stops moving.
+    sys_.RefreshClock(st_);
+    lastRefresh_ = now - kRefreshEvery;
     now_ = now;
     reveal_ = 0;
     animating_ = false;
@@ -125,28 +129,26 @@ void Ui::Open(Side side, bool tracking, double now) {
     dirty_ = true;
 }
 
-void Ui::HideNow() {
-    visible_ = false;
-    reveal_ = 0;
-    animating_ = false;
-    drag_ = Drag::None;
-    pressed_ = kNone;
-    dirty_ = true;
-}
-
 void Ui::Close(double now) {
     drag_ = Drag::None;
     pressed_ = kNone;
     AnimateReveal(0, now);
 }
 
+void Ui::HideNow() {
+    visible_ = false;
+    reveal_ = 0;
+    animating_ = false;
+    drag_ = Drag::None;
+    pressed_ = kNone;
+}
+
 void Ui::AnimateReveal(float to, double now) {
     animFrom_ = reveal_;
     animTo_ = to;
     animStart_ = now;
-    animDur_ = std::max(0.09, 0.28 * std::fabs(to - reveal_));
+    animDur_ = std::max(0.09, 0.24 * std::fabs(to - reveal_));
     animating_ = true;
-    dirty_ = true;
 }
 
 Ui::Request Ui::TakeRequest(OverlayEntry* launch) {
@@ -167,7 +169,8 @@ bool Ui::Update(const Input& in) {
     now_ = in.now;
     if (!visible_) return false;
 
-    if (now_ - lastRefresh_ > 0.5) {
+    // Status IPC takes a few milliseconds: never while the panel moves.
+    if (now_ - lastRefresh_ >= kRefreshEvery && !animating_ && drag_ == Drag::None) {
         sys_.Refresh(st_);
         lastRefresh_ = now_;
         dirty_ = true;
@@ -191,7 +194,6 @@ bool Ui::Update(const Input& in) {
             animating_ = false;
         }
         reveal_ = animFrom_ + (animTo_ - animFrom_) * EaseOut(t);
-        dirty_ = true;
         if (!animating_ && animTo_ == 0) {
             visible_ = false;
             reveal_ = 0;
@@ -239,14 +241,16 @@ void Ui::HandleKeys(const Input& in) {
 
 void Ui::HandleTouch(const Input& in) {
     const Touch& t = in.touch;
-    float lx = t.x - LayerX() - PanelX();
-    float ly = t.y - kMargin;
     bool left = side_ == Side::Left;
+    // A released touch reports no position: use where the finger last was.
+    float x = t.down ? t.x : lastX_, y = t.down ? t.y : lastY_;
+    float lx = x - LayerX() - PanelX();
+    float ly = y - kMargin;
 
-    auto sliderValue = [&](float x) {
+    auto sliderValue = [&](float px) {
         const Item* s = Find(kSlider);
         if (!s) return st_.brightness;
-        return std::clamp((x - s->x - kSliderH / 2) / (s->w - kSliderH), 0.f, 1.f);
+        return std::clamp((px - s->x - kSliderH / 2) / (s->w - kSliderH), 0.f, 1.f);
     };
 
     if (t.down && !wasDown_) {
@@ -266,7 +270,7 @@ void Ui::HandleTouch(const Input& in) {
         }
         dirty_ = true;
     } else if (t.down && wasDown_) {
-        if (lastX_ < 0) {  // first frame of an edge swipe handed over from the background thread
+        if (lastX_ < 0) {  // first sample of an edge swipe handed over from the input thread
             startX_ = lastX_ = t.x;
             startY_ = lastY_ = t.y;
             lastT_ = now_;
@@ -275,14 +279,13 @@ void Ui::HandleTouch(const Input& in) {
         if (dt > 0) vx_ = vx_ * 0.5f + float((t.x - lastX_) / dt) * 0.5f;
         lastX_ = t.x;
         lastY_ = t.y;
-        lastT_ = now_;
+        if (dt > 0) lastT_ = now_;
         float dx = t.x - startX_, dy = t.y - startY_;
         switch (drag_) {
             case Drag::TrackOpen: {
                 float dist = left ? t.x : kScreenW - t.x;
                 reveal_ = std::clamp(dist / (kPW * 0.85f), 0.f, 1.f);
                 animating_ = false;
-                dirty_ = true;
                 break;
             }
             case Drag::Slider:
@@ -290,7 +293,7 @@ void Ui::HandleTouch(const Input& in) {
                 dirty_ = true;
                 break;
             case Drag::Pending:
-                if (std::hypot(dx, dy) > 14) {
+                if (std::hypot(dx, dy) > 18) {
                     float toEdge = left ? -dx : dx;
                     if (std::fabs(dx) > std::fabs(dy) && toEdge > 0) {
                         drag_ = Drag::Panel;
@@ -312,7 +315,6 @@ void Ui::HandleTouch(const Input& in) {
             case Drag::Panel: {
                 float toEdge = left ? -dx : dx;
                 reveal_ = std::clamp(dragReveal0_ - std::max(0.f, toEdge) / kPW, 0.f, 1.f);
-                dirty_ = true;
                 break;
             }
             case Drag::None:
@@ -354,24 +356,21 @@ void Ui::HandleTouch(const Input& in) {
 
 void Ui::Activate(int id, double now) {
     dirty_ = true;
-    lastRefresh_ = now - 0.35;  // show the result soon
+    lastRefresh_ = now - kRefreshEvery + 0.15;  // show the real result soon
     if (id != kReboot && id != kPower) armed_ = kNone;
     switch (id) {
         case kHeadphones:
         case kHpToggle:
-            if (st_.btReady) sys_.SetHeadphones(st_, !(st_.hpConnected || st_.hpConnecting));
+            if (st_.btReady && st_.radioOn) sys_.SetHeadphones(st_, !(st_.hpConnected || st_.hpConnecting));
             return;
         case kWifi:
             if (st_.wifiReady) sys_.SetWifi(st_, !st_.wifiOn);
             return;
+        case kAirplane:
+            if (st_.wifiReady && st_.btReady && !st_.docked) sys_.SetAirplane(st_, !st_.airplane);
+            return;
         case kBoost:
             if (st_.sysclkReady) sys_.SetBoost(st_, !st_.boost);
-            return;
-        case kScreen:
-            if (st_.lblReady && !st_.docked) {
-                request_ = Request::ScreenOff;
-                Close(now);
-            }
             return;
         case kCharge:
             if (st_.chargeCtlReady) sys_.SetChargingEnabled(st_, !st_.chargingEnabled);
@@ -420,7 +419,8 @@ void Ui::Secondary(int id) {
 void Ui::SetPage(Page p) {
     Page from = page_;
     page_ = p;
-    if (p != Page::Main) sys_.RefreshLists(st_);
+    if (p == Page::Headphones) sys_.ListDevices(st_);
+    if (p == Page::Overlays) sys_.ListOverlays(st_);
     Layout();
     if (p == Page::Main) focus_ = from == Page::Overlays ? kOverlays : kHeadphones;
     else focus_ = items_.size() > 1 ? items_[1].id : kBack;
@@ -461,7 +461,7 @@ void Ui::Layout() {
         case Page::Main: {
             items_.push_back({kSlider, kPad, 108, kCW - kSliderH - 10, kSliderH});
             items_.push_back({kAuto, kPad + kCW - kSliderH, 108, kSliderH, kSliderH});
-            const int ids[6] = {kHeadphones, kWifi, kBoost, kScreen, kCharge, kOverlays};
+            const int ids[6] = {kHeadphones, kWifi, kAirplane, kBoost, kCharge, kOverlays};
             for (int i = 0; i < 6; i++)
                 items_.push_back({ids[i], kPad + (i % 2) * (kTileW + kGap), 180 + (i / 2) * (kTileH + kGap), kTileW,
                                   kTileH});
@@ -505,7 +505,7 @@ float Ui::OnAmount(int id, bool on) {
         return target;
     }
     float& v = it->second;
-    float step = float(std::max(0.0, now_ - lastDraw_) / 0.16);
+    float step = float(std::max(0.0, now_ - lastRender_) / 0.16);
     if (v < target) v = std::min(target, v + step);
     else if (v > target) v = std::max(target, v - step);
     if (v != target) tileAnim_ = true;
@@ -514,26 +514,37 @@ float Ui::OnAmount(int id, bool on) {
 
 // ------------------------------------------------------------ drawing
 
-void Ui::Draw() {
-    tileAnim_ = false;
-    cv_.ResetClip();
-    cv_.SetOpacity(1);
-    cv_.Clear();
-    if (visible_ && reveal_ > 0.001f) {
-        ox_ = PanelX();
-        oy_ = kMargin;
-        cv_.SetOpacity(std::min(1.f, 0.35f + reveal_ * 0.9f));
-        cv_.FillRoundRect(ox_, oy_, kPW, kPH, 30, kPanel);
-        cv_.StrokeRoundRect(ox_, oy_, kPW, kPH, 30, 1, kBorder);
-        switch (page_) {
-            case Page::Main: DrawMain(); break;
-            case Page::Headphones: DrawHeadphones(); break;
-            case Page::Overlays: DrawOverlays(); break;
-        }
-        cv_.SetOpacity(1);
+bool Ui::NeedsPresent() const {
+    if (!visible_) return shownVisible_;
+    return dirty_ || tileAnim_ || !shownVisible_ || reveal_ != shownReveal_;
+}
+
+void Ui::Present(Canvas& screen) {
+    if (!visible_ || reveal_ <= 0.001f) {
+        screen.Clear();
+    } else {
+        if (dirty_ || tileAnim_) Render();
+        screen.Blit(buf_.data(), int(std::lround(PanelX() - kMargin)));
     }
-    lastDraw_ = now_;
-    dirty_ = tileAnim_;
+    shownVisible_ = visible_;
+    shownReveal_ = reveal_;
+}
+
+void Ui::Render() {
+    tileAnim_ = false;
+    dirty_ = false;
+    cv_.ResetClip();
+    cv_.Clear();
+    ox_ = kMargin;  // drawn fully open; Present shifts it
+    oy_ = kMargin;
+    cv_.FillRoundRect(ox_, oy_, kPW, kPH, 30, kPanel);
+    cv_.StrokeRoundRect(ox_, oy_, kPW, kPH, 30, 1.5f, kBorder);
+    switch (page_) {
+        case Page::Main: DrawMain(); break;
+        case Page::Headphones: DrawHeadphones(); break;
+        case Page::Overlays: DrawOverlays(); break;
+    }
+    lastRender_ = now_;
 }
 
 void Ui::DrawPressed(const Item& it, float r) {
@@ -559,11 +570,11 @@ void Ui::DrawBattery(float right, float baseline) {
     float tw = cv_.Measure(pct, Font::Medium, 17);
     float tx = x - 8 - tw;
     cv_.Text(tx, baseline, pct, Font::Medium, 17, kOnSurface);
-    if (st_.charging) cv_.Icon(icon::Bolt, tx - 11, baseline - 6, 18, kPrimary);
+    if (st_.charging) cv_.Icon(icon::Bolt, tx - 11, baseline - 6, 18, kDanger);
 }
 
 void Ui::DrawKeyHint(float& x, float baseline, const char* k, const char* label) {
-    cv_.FillCircle(x + 10, baseline - 5, 10, Hex(0x45474F));
+    cv_.FillCircle(x + 10, baseline - 5, 10, kKeyCap);
     float kw = cv_.Measure(k, Font::Medium, 12);
     cv_.Text(x + 10 - kw / 2, baseline - 1, k, Font::Medium, 12, kOnSurface);
     x += 25;
@@ -578,7 +589,7 @@ void Ui::DrawTile(const Item& it, uint32_t ic, const char* title, const std::str
     Color sc = Mix(kMuted, kOnPrimaryMuted, t);
     if (!enabled) {
         bg = kSurfaceLow;
-        fg = Fade(kOnSurface, 0.45f);
+        fg = Fade(kOnSurface, 0.4f);
         sc = Fade(kMuted, 0.6f);
     }
     float x = ox_ + it.x, y = oy_ + it.y;
@@ -614,11 +625,12 @@ void Ui::DrawRow(const Item& it, uint32_t ic, const std::string& title, const st
 void Ui::DrawPageHeader(const char* title) {
     if (const Item* b = Find(kBack)) {
         float cx = ox_ + b->x + b->w / 2, cy = oy_ + b->y + b->h / 2;
+        cv_.FillCircle(cx, cy, b->w / 2, kSurface);
         if (pressed_ == kBack && drag_ == Drag::Pending) cv_.FillCircle(cx, cy, b->w / 2, kPressed);
         cv_.Icon(icon::Back, cx, cy, 24, kOnSurface);
         DrawFocus(*b, b->w / 2);
     }
-    cv_.Text(ox_ + 66, oy_ + 46, title, Font::Medium, 22, kOnSurface);
+    cv_.Text(ox_ + 70, oy_ + 46, title, Font::Medium, 22, kOnSurface);
 }
 
 void Ui::DrawMain() {
@@ -641,7 +653,7 @@ void Ui::DrawMain() {
         float x = ox_ + s->x, y = top + s->y;
         float fillW = kSliderH + (s->w - kSliderH) * std::clamp(st_.brightness, 0.f, 1.f);
         cv_.FillRoundRect(x, y, s->w, s->h, kSliderH / 2, brOk ? kSurface : kSurfaceLow);
-        cv_.FillRoundRect(x, y, fillW, s->h, kSliderH / 2, brOk ? kPrimary : Fade(kPrimary, 0.35f));
+        cv_.FillRoundRect(x, y, fillW, s->h, kSliderH / 2, brOk ? kPrimary : Fade(kPrimary, 0.4f));
         cv_.Icon(icon::Light, x + kSliderH / 2, y + s->h / 2, 24, kOnPrimary);
         DrawFocus(*s, kSliderH / 2);
     }
@@ -650,7 +662,7 @@ void Ui::DrawMain() {
         float cx = ox_ + a->x + a->w / 2, cy = top + a->y + a->h / 2;
         cv_.FillCircle(cx, cy, a->w / 2, st_.lblReady ? Mix(kSurface, kPrimary, t) : kSurfaceLow);
         if (pressed_ == kAuto && drag_ == Drag::Pending) cv_.FillCircle(cx, cy, a->w / 2, kPressed);
-        cv_.Icon(icon::Auto, cx, cy, 24, st_.lblReady ? Mix(kOnSurface, kOnPrimary, t) : Fade(kOnSurface, 0.45f));
+        cv_.Icon(icon::Auto, cx, cy, 24, st_.lblReady ? Mix(kOnSurface, kOnPrimary, t) : Fade(kOnSurface, 0.4f));
         DrawFocus(*a, a->w / 2);
     }
 
@@ -658,18 +670,26 @@ void Ui::DrawMain() {
     for (const Item& it : items_) {
         switch (it.id) {
             case kHeadphones: {
+                bool usable = st_.btReady && st_.radioOn;
                 std::string sub;
                 if (!st_.btReady) sub = T->noBt;
+                else if (!st_.radioOn) sub = T->btOff;
                 else if (st_.hpConnecting) sub = T->connecting;
                 else if (st_.hpConnected) sub = st_.hpName;
                 else sub = T->off;
                 bool on = st_.hpConnected || st_.hpConnecting;
-                DrawTile(it, on ? icon::Headphones : icon::HeadsetOff, T->headphones, sub, on, st_.btReady, true);
+                DrawTile(it, on ? icon::Headphones : icon::HeadsetOff, T->headphones, sub, on, usable, true);
                 break;
             }
             case kWifi: {
                 std::string sub = !st_.wifiOn ? T->off : (st_.wifiOnline && !st_.ssid.empty() ? st_.ssid : T->noNetwork);
                 DrawTile(it, st_.wifiOn ? icon::Wifi : icon::WifiOff, T->wifi, sub, st_.wifiOn, st_.wifiReady, false);
+                break;
+            }
+            case kAirplane: {
+                bool usable = st_.wifiReady && st_.btReady && !st_.docked;
+                const char* sub = st_.docked ? T->handheldOnly : (st_.airplane ? T->on : T->off);
+                DrawTile(it, icon::Flight, T->airplane, sub, st_.airplane, usable, false);
                 break;
             }
             case kBoost: {
@@ -682,10 +702,6 @@ void Ui::DrawMain() {
                 DrawTile(it, icon::Speed, T->boost, sub, st_.boost, st_.sysclkReady, false);
                 break;
             }
-            case kScreen:
-                DrawTile(it, icon::TvOff, T->screen, st_.docked ? T->handheldOnly : T->turnOff, false,
-                         st_.lblReady && !st_.docked, false);
-                break;
             case kCharge: {
                 bool paused = !st_.chargingEnabled;
                 std::string sub = paused ? T->notCharging
@@ -729,7 +745,6 @@ void Ui::DrawMain() {
         }
     } else {
         std::string msg = T->noSysclk;
-        // Two lines at most: split at the colon if it does not fit.
         size_t colon = msg.find(':');
         if (cv_.Measure(msg, Font::Regular, 14) > kCW - 36 && colon != std::string::npos) {
             cv_.Text(x0 + 18, cy + kStatsH / 2 - 4, msg.substr(0, colon), Font::Regular, 14, kMuted);
@@ -774,6 +789,7 @@ void Ui::DrawHeadphones() {
                               : st_.hpConnected ? st_.hpName
                               : (st_.hpName.empty() ? T->off : st_.hpName + " · " + T->off);
             if (!st_.btReady) sub = T->noBt;
+            else if (!st_.radioOn) sub = T->btOff;
             float t = OnAmount(it.id, on);
             float x = ox_ + it.x, y = oy_ + it.y;
             cv_.FillRoundRect(x, y, it.w, it.h, kTileR, Mix(kSurface, kPrimary, t));
@@ -785,9 +801,9 @@ void Ui::DrawHeadphones() {
                      Mix(kMuted, kOnPrimaryMuted, t));
             // Switch knob.
             float sw = 52, sh = 32, sx = x + it.w - sw - 16, sy = y + (it.h - sh) / 2;
-            cv_.FillRoundRect(sx, sy, sw, sh, sh / 2, Mix(Hex(0x44464F), kOnPrimary, t));
+            cv_.FillRoundRect(sx, sy, sw, sh, sh / 2, Mix(Hex(0xE3CCC7), kOnPrimary, t));
             float kx = sx + sh / 2 + t * (sw - sh);
-            cv_.FillCircle(kx, sy + sh / 2, 10 + 2 * t, Mix(kMuted, kPrimary, t));
+            cv_.FillCircle(kx, sy + sh / 2, 10 + 2 * t, Mix(Hex(0xFFFFFF), kPrimary, t));
             DrawFocus(it, kTileR);
         } else if (it.id >= kDevice0 && it.id < kOverlay0) {
             const AudioDevice& d = st_.paired[size_t(it.id - kDevice0)];
@@ -796,8 +812,7 @@ void Ui::DrawHeadphones() {
                     d.connected);
         }
     }
-    float y = oy_ + 184;
-    cv_.Text(ox_ + kPad + 4, y, st_.paired.empty() ? T->noDevices : T->devices, Font::Medium, 14, kMuted);
+    cv_.Text(ox_ + kPad + 4, oy_ + 184, st_.paired.empty() ? T->noDevices : T->devices, Font::Medium, 14, kMuted);
     if (st_.autoconnect)
         cv_.Text(ox_ + kPad + 4, oy_ + kPH - 26, st_.hpPaused ? T->autoPaused : T->autoOn, Font::Regular, 14, kMuted);
 }

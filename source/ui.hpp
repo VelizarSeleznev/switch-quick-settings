@@ -1,6 +1,10 @@
 // The quick settings panel: layout, drawing, touch/button handling and the
-// slide-in animation. Platform-independent; main.cpp feeds it input and
-// presents the canvas, the host preview drives it with scripted input.
+// slide-in. Platform-independent; main.cpp feeds it input and a framebuffer,
+// the host preview drives it with scripted input.
+//
+// The panel is rendered into its own buffer only when its content changes;
+// each frame just copies that buffer to the screen at the current slide
+// offset, so sliding costs a copy rather than a full redraw.
 #pragma once
 
 #include <map>
@@ -27,9 +31,9 @@ class Ui {
 public:
     static constexpr int kLayerW = 448, kLayerH = 720, kScreenW = 1280;
 
-    enum class Request { None, ScreenOff, Launch, Reboot, PowerOff };
+    enum class Request { None, Launch, Reboot, PowerOff };
 
-    Ui(System& sys, Canvas& canvas, bool russian);
+    Ui(System& sys, bool russian);
 
     // Starts showing the panel. tracking: an edge swipe is still under the
     // finger, so the panel follows it until release.
@@ -38,14 +42,16 @@ public:
     void Close(double now);
     // Hides at once, without animation (HOME or power button).
     void HideNow();
-    // Handles one frame of input and animation. Returns false once fully closed.
+    // Handles one input sample and advances the animation. Returns false once fully closed.
     bool Update(const Input& in);
-    bool NeedsDraw() const { return dirty_; }
-    void Draw();
+    // True when the screen needs a new frame.
+    bool NeedsPresent() const;
+    // Draws the current frame (an empty one when closed) into the layer canvas.
+    void Present(Canvas& screen);
 
     Side side() const { return side_; }
     int LayerX() const { return side_ == Side::Left ? 0 : kScreenW - kLayerW; }
-    // What to do after the panel closed (screen off, launch an overlay, ...).
+    // What to do after the panel closed (launch an overlay, restart, ...).
     Request TakeRequest(OverlayEntry* launch);
     State& state() { return st_; }
 
@@ -53,7 +59,7 @@ private:
     enum class Page { Main, Headphones, Overlays };
     enum class Drag { None, Pending, Slider, Panel, TrackOpen };
     enum Id {
-        kNone = 0, kHeadphones, kWifi, kBoost, kScreen, kCharge, kOverlays,
+        kNone = 0, kHeadphones, kWifi, kAirplane, kBoost, kCharge, kOverlays,
         kSlider, kAuto, kReboot, kPower, kBack, kHpToggle,
         kDevice0 = 100, kOverlay0 = 200,
     };
@@ -75,6 +81,7 @@ private:
     const Item* Find(int id) const;
     float OnAmount(int id, bool on);
 
+    void Render();
     void DrawMain();
     void DrawHeadphones();
     void DrawOverlays();
@@ -88,7 +95,8 @@ private:
     void DrawFocus(const Item& it, float r);
 
     System& sys_;
-    Canvas& cv_;
+    std::vector<uint16_t> buf_;   // rendered panel, linear RGBA4444
+    Canvas cv_;
     State st_;
     bool ru_;
 
@@ -98,7 +106,9 @@ private:
     float animFrom_ = 0, animTo_ = 0;
     double animStart_ = 0, animDur_ = 0;
     bool animating_ = false;
-    bool dirty_ = true;
+    bool dirty_ = true;           // panel content changed: render again
+    float shownReveal_ = -1;      // reveal of the last presented frame
+    bool shownVisible_ = false;
 
     Page page_ = Page::Main;
     std::vector<Item> items_;
@@ -122,7 +132,7 @@ private:
     double lastRefresh_ = -1;
     double now_ = 0;
     std::map<int, float> onAnim_;
-    double lastDraw_ = 0;
+    double lastRender_ = 0;
     bool tileAnim_ = false;       // a tile color transition is still running
     float ox_ = 0, oy_ = 0;       // panel origin while drawing
 

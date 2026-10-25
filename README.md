@@ -1,8 +1,9 @@
 # quick-settings
 
 A quick settings panel for a modded Nintendo Switch (Atmosphère), in the style
-of Android's Pixel quick settings. Swipe in from the left or right edge of the
-screen and a panel slides out on that side, over whatever is running.
+of Android's Pixel quick settings and the colors of the "Pastel Dream" home
+menu theme. Swipe in from the left or right edge of the screen and a panel
+slides out on that side, over whatever is running.
 
 What it has:
 
@@ -12,11 +13,12 @@ What it has:
   so the Switch stops grabbing them on wake until you turn them on here again.
   Long-press (or the arrow) opens the list of paired devices.
 - **Wi-Fi** on/off.
-- **Boost**: sys-clk override to the fastest stock clocks (CPU 1785 MHz,
+- **Airplane mode**: Wi-Fi and the Bluetooth radio off (also stored in system
+  settings, like the HOME menu's flight mode). Handheld only: in the dock it
+  would cut off wireless controllers.
+- **Overclock**: sys-clk override to the fastest stock clocks (CPU 1785 MHz,
   GPU 921 MHz, RAM 1600 MHz; sys-clk itself caps the GPU in handheld mode).
   Tap again to go back to normal. Not kept across reboots.
-- **Screen**: turns the backlight off (game and audio keep running); any
-  button or touch turns it back on. Handheld only.
 - **Pause charging**: stops charging the battery while plugged in.
 - **Overlays**: launches other Tesla overlays (sys-clk, sys-patch, ...).
 - Brightness slider and auto-brightness, clock, battery, a sensor card from

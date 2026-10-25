@@ -25,8 +25,8 @@ TEXT_RANGES = [(0x20, 0x7E), (0xA0, 0xFF), (0x400, 0x45F), (0x2010, 0x2027), (0x
 # Material Symbols code points the UI draws (see source/icons.hpp).
 ICONS = {
     "headphones": 0xF01F, "headset_off": 0xE33A, "wifi": 0xE63E, "wifi_off": 0xE648,
-    "brightness_auto": 0xE1AB, "tv_off": 0xE647,
-    "speed": 0xE9E4, "mobile_off": 0xE201, "battery_charging_full": 0xE1A3,
+    "brightness_auto": 0xE1AB, "flight": 0xE539,
+    "speed": 0xE9E4, "battery_charging_full": 0xE1A3,
     "battery_full": 0xE1A5, "light_mode": 0xE518, "brightness_low": 0xE1AD,
     "power_settings_new": 0xF8C7, "restart_alt": 0xF053, "chevron_right": 0xE5CC,
     "check": 0xE668, "arrow_back": 0xE5C4, "layers": 0xE53B, "thermostat": 0xF076,

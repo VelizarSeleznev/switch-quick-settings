@@ -98,7 +98,14 @@ float Fonts::Kern(Font f, float px, uint32_t a, uint32_t b) {
 // ---------------------------------------------------------------- Canvas
 
 void Canvas::Clear() {
-    if (px_) std::memset(px_, 0, size_t(w_) * h_ * 2);
+    if (!px_) return;
+    if (!swizzled_) {
+        std::memset(px_, 0, size_t(w_) * h_ * 2);
+        return;
+    }
+    // Block-linear rows are padded, so the pixels are not in the first w*h slots.
+    for (int y = 0; y < h_; y++)
+        for (int x = 0; x < w_; x++) px_[Offset(x, y)] = 0;
 }
 
 void Canvas::SetClip(int x, int y, int w, int h) {
@@ -121,12 +128,13 @@ uint32_t Canvas::Offset(int x, int y) const {
 void Canvas::Blend(int x, int y, Color c, int cov) {
     if (x < cx0_ || y < cy0_ || x >= cx1_ || y >= cy1_) return;
     int sa = (c.a * cov + 127) / 255;
-    if (opacity_ < 1.f) sa = int(sa * opacity_ + 0.5f);
     if (sa <= 0) return;
     uint16_t& dst = px_[Offset(x, y)];
     int r, g, b, a;
     if (sa >= 255) {
         r = c.r; g = c.g; b = c.b; a = 255;
+    } else if (dst == 0) {  // onto transparent: the source as is
+        r = c.r; g = c.g; b = c.b; a = sa;
     } else {
         int da = (dst >> 12) * 17;
         int dr = (dst & 0xF) * 17, dg = ((dst >> 4) & 0xF) * 17, db = ((dst >> 8) & 0xF) * 17;
@@ -141,6 +149,16 @@ void Canvas::Blend(int x, int y, Color c, int cov) {
     auto q = [t](int v) { return std::min(15, (v * 15 * 16 / 255 + t) / 16); };
     int qa = (a * 15 + 127) / 255;
     dst = uint16_t(q(r) | (q(g) << 4) | (q(b) << 8) | (qa << 12));
+}
+
+void Canvas::Blit(const uint16_t* src, int dx) {
+    for (int y = 0; y < h_; y++) {
+        const uint16_t* row = src + size_t(y) * w_;
+        for (int x = 0; x < w_; x++) {
+            int sx = x - dx;
+            px_[Offset(x, y)] = (sx >= 0 && sx < w_) ? row[sx] : 0;
+        }
+    }
 }
 
 void Canvas::FillRoundRect(float x, float y, float w, float h, float r, Color c) {

@@ -33,10 +33,13 @@ struct FakeSystem : System {
         s.paired = paired;
         s.overlays = overlays;
     }
-    void RefreshLists(State& s) override {
-        s.paired = base.paired;
-        s.overlays = base.overlays;
+    void RefreshClock(State& s) override {
+        s.hour = base.hour;
+        s.minute = base.minute;
+        s.battery = base.battery;
     }
+    void ListDevices(State& s) override { s.paired = base.paired; }
+    void ListOverlays(State& s) override { s.overlays = base.overlays; }
     void SetHeadphones(State& s, bool on) override {
         s.hpConnected = base.hpConnected = on;
         s.hpPaused = base.hpPaused = !on;
@@ -44,6 +47,12 @@ struct FakeSystem : System {
     }
     void ToggleDevice(State& s, const AudioDevice& d) override { log.push_back("toggle " + d.name); }
     void SetWifi(State& s, bool on) override { s.wifiOn = base.wifiOn = on; log.push_back(on ? "wifi on" : "wifi off"); }
+    void SetAirplane(State& s, bool on) override {
+        s.airplane = base.airplane = on;
+        s.wifiOn = base.wifiOn = !on;
+        s.radioOn = base.radioOn = !on;
+        log.push_back(on ? "airplane on" : "airplane off");
+    }
     void SetBoost(State& s, bool on) override { s.boost = base.boost = on; log.push_back(on ? "boost on" : "boost off"); }
     void SetChargingEnabled(State& s, bool on) override { s.chargingEnabled = base.chargingEnabled = on; }
     void SetBrightness(State& s, float v, bool commit) override {
@@ -51,7 +60,6 @@ struct FakeSystem : System {
         if (commit) log.push_back("brightness " + std::to_string(int(v * 100)));
     }
     void SetAutoBrightness(State& s, bool on) override { s.autoBrightness = base.autoBrightness = on; }
-    void ScreenOff() override { log.push_back("screen off"); }
     void Reboot() override { log.push_back("reboot"); }
     void PowerOff() override { log.push_back("power off"); }
     void LaunchOverlay(const OverlayEntry& o) override { log.push_back("launch " + o.path); }
@@ -121,27 +129,42 @@ struct Harness {
     double t = 0;
     Touch touch;
 
-    explicit Harness(bool ru, State s = SampleState()) : ui(sys, cv, ru) {
+    explicit Harness(bool ru, State s = SampleState()) : ui(sys, ru) {
         sys.base = s;
         cv.Bind(layer.data(), false);
+        sys.Refresh(ui.state());
+        sys.ListOverlays(ui.state());
     }
-    // Runs frames at 60 fps; returns false if the panel closed.
-    bool Run(double seconds, uint64_t down = 0) {
-        bool alive = true;
+    void Frame(uint64_t down = 0) {
+        Input in{down, 0, touch, t};
+        ui.Update(in);
+        if (ui.NeedsPresent()) ui.Present(cv);
+    }
+    // Runs frames at 60 fps.
+    void Run(double seconds, uint64_t down = 0) {
         int frames = std::max(1, int(seconds * 60));
         for (int i = 0; i < frames; i++) {
             t += 1 / 60.0;
-            Input in{i == 0 ? down : 0, 0, touch, t};
-            alive = ui.Update(in);
-            if (ui.NeedsDraw()) ui.Draw();
+            Frame(i == 0 ? down : 0);
         }
-        return alive;
     }
+    bool Open() { return ui.Update({0, 0, {}, t}); }
+    // Like the console: a released touch carries no position.
+    void Release() { touch = {false, 0, 0}; }
     void Press(uint64_t k) { Run(1 / 60.0, k); Run(0.3); }
     void Tap(float x, float y) {
         touch = {true, x, y};
         Run(0.05);
-        touch.down = false;
+        Release();
+        Run(0.3);
+    }
+    // Press and release inside one frame (main.cpp replays both samples).
+    void QuickTap(float x, float y) {
+        t += 1 / 60.0;
+        touch = {true, x, y};
+        Frame();
+        Release();
+        Frame();
         Run(0.3);
     }
     void Swipe(float x0, float y0, float x1, float y1, double dur) {
@@ -150,10 +173,10 @@ struct Harness {
             touch = {true, x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n};
             Run(1 / 60.0);
         }
-        touch.down = false;
+        Release();
     }
     void Snap(const std::string& name) {
-        ui.Draw();
+        ui.Present(cv);
         Save(name, layer, ui.LayerX());
     }
 };
@@ -210,19 +233,35 @@ int main(int argc, char** argv) {
             h.Run(1 / 60.0);
         }
         h.Snap("swipe_midway_ru");
-        h.touch.down = false;
+        h.Release();
         h.Run(0.5);
-        Check(h.ui.Update({0, 0, {}, h.t}), "edge swipe released past a third stays open");
-        // Tap on the headphones tile: turns them off.
-        h.Tap(12 + 20 + 90, 12 + 180 + 38);
+        Check(h.Open(), "edge swipe released past a third stays open");
+        // Taps on tiles (release carries no position, like on the console).
+        const float hpX = 12 + 20 + 90, hpY = 12 + 180 + 38;
+        h.Tap(hpX, hpY);
         Check(!h.sys.base.hpConnected && h.sys.base.hpPaused, "tap on headphones tile disconnects and pauses");
+        h.QuickTap(hpX, hpY);
+        Check(h.sys.base.hpConnected && !h.sys.base.hpPaused, "a tap shorter than a frame reconnects them");
+        h.QuickTap(12 + 20 + 197 + 90, hpY);
+        Check(!h.sys.base.wifiOn, "quick tap on Wi-Fi turns it off");
+        h.QuickTap(hpX, 12 + 266 + 38);
+        Check(h.sys.base.airplane, "quick tap on airplane mode turns it on");
+        h.Snap("airplane_ru");
+        h.QuickTap(hpX, 12 + 266 + 38);
+        Check(!h.sys.base.airplane, "second tap turns airplane mode off");
+        h.QuickTap(12 + 20 + 384 - 28, 12 + 108 + 28);
+        Check(h.sys.base.autoBrightness, "quick tap on auto brightness turns it on");
         // Long press on the headphones tile opens the device page.
-        h.touch = {true, 12 + 20 + 90, 12 + 180 + 38};
+        h.touch = {true, hpX, hpY};
         h.Run(0.6);
-        h.touch.down = false;
+        h.Release();
         h.Run(0.3);
         h.Snap("headphones_ru");
-        h.Press(key::B);
+        // Back arrow (quick tap) returns to the main page: Wi-Fi tile works again.
+        bool wifiBefore = h.sys.base.wifiOn;
+        h.QuickTap(12 + 12 + 24, 12 + 14 + 24);
+        h.QuickTap(12 + 20 + 197 + 90, hpY);
+        Check(h.sys.base.wifiOn != wifiBefore, "back arrow returns to the main page");
         // Brightness drag.
         h.Swipe(12 + 20 + 40, 12 + 136, 12 + 20 + 200, 12 + 136, 0.3);
         h.Run(0.1);
@@ -242,7 +281,7 @@ int main(int argc, char** argv) {
         h.touch = {true, 1240, 300};
         h.ui.Open(Side::Right, true, h.t);
         h.Run(0.05);
-        h.touch.down = false;
+        h.Release();
         h.Run(0.5);
         Check(h.ui.Update({0, 0, {}, h.t}), "quick flick from the right edge opens");
 
@@ -250,7 +289,7 @@ int main(int argc, char** argv) {
         g.touch = {true, 1262, 300};
         g.ui.Open(Side::Right, true, g.t);
         g.Run(0.6);
-        g.touch.down = false;
+        g.Release();
         g.Run(0.6);
         Check(!g.ui.Update({0, 0, {}, g.t}), "slow tiny pull from the edge closes again");
     }
