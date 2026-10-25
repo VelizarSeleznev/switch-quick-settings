@@ -5,9 +5,14 @@ in from the left or right edge of the screen, in any game or in the HOME menu,
 and a panel slides out on that side: headphones, Wi-Fi, airplane mode,
 overclock, brightness, volume.
 
+![The panel over Nine Sols, captured on the console](docs/screenshot.jpg)
+
+[Demo video](https://github.com/VelizarSeleznev/switch-quick-settings/releases/download/v1.0.0/quick-settings-demo.mp4)
+(recorded with the Switch's own Capture button).
+
 ![Main panel, headphones, Wi-Fi details, airplane mode](docs/screens.png)
 
-*Rendered by the host preview (`host/build.sh`), which runs the same UI code.*
+*Other pages, rendered by the host preview (`host/build.sh`), which runs the same UI code.*
 
 It is a Tesla-style overlay: it replaces Tesla Menu / Ultrahand as the
 overlay that nx-ovlloader starts, and can still launch your other overlays.
