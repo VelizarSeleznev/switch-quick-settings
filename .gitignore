@@ -1,0 +1,10 @@
+.venv/
+build/
+dist/
+host/out/
+*.elf
+*.ovl
+*.nacp
+*.map
+__pycache__/
+.cache/
