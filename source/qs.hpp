@@ -46,9 +46,12 @@ struct State {
     bool autoconnect = false;   // bt-autoconnect sysmodule installed
     std::vector<AudioDevice> paired;
 
-    // Wi-Fi and airplane mode (Wi-Fi and Bluetooth radio both off).
+    // Wi-Fi and airplane mode. Airplane mode is a flag of its own, like the
+    // system's: it turns Wi-Fi and Bluetooth off, and either can be turned
+    // back on while it stays in airplane mode.
     bool wifiReady = false, wifiOn = false, wifiOnline = false;
-    std::string ssid;
+    std::string ssid, ip;
+    int wifiSignal = 0;         // 0..3 bars
     bool airplane = false;
 
     // sys-clk.
@@ -64,7 +67,11 @@ struct State {
     // Backlight (lbl).
     bool lblReady = false;
     float brightness = 0.5f;
-    bool autoBrightness = false;
+
+    // Output volume (audctl) of the active output: speaker, wired, Bluetooth or TV.
+    bool volReady = false;
+    float volume = 0.5f;        // 0..1
+    int volSteps = 15;          // number of steps between min and max
 
     std::vector<OverlayEntry> overlays;
 };
@@ -72,8 +79,8 @@ struct State {
 class System {
 public:
     virtual ~System() = default;
-    // Status poll (connections, clocks, sensors, brightness). Called every
-    // half second while the panel is open and nothing is moving.
+    // Status poll (connections, clocks, sensors, brightness, volume). Called
+    // every half second while the panel is open and nothing is moving.
     virtual void Refresh(State& s) = 0;
     // Clock and battery only: cheap, called as the panel opens.
     virtual void RefreshClock(State& s) = 0;
@@ -88,7 +95,7 @@ public:
     virtual void SetBoost(State& s, bool on) = 0;
     virtual void SetChargingEnabled(State& s, bool on) = 0;
     virtual void SetBrightness(State& s, float v, bool commit) = 0;
-    virtual void SetAutoBrightness(State& s, bool on) = 0;
+    virtual void SetVolume(State& s, float v) = 0;
     virtual void Reboot() = 0;
     virtual void PowerOff() = 0;
     virtual void LaunchOverlay(const OverlayEntry& o) = 0;

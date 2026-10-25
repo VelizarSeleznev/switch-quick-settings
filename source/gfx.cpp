@@ -100,12 +100,12 @@ float Fonts::Kern(Font f, float px, uint32_t a, uint32_t b) {
 void Canvas::Clear() {
     if (!px_) return;
     if (!swizzled_) {
-        std::memset(px_, 0, size_t(w_) * h_ * 2);
+        for (int y = cy0_; y < cy1_; y++) std::memset(px_ + size_t(y) * w_ + cx0_, 0, size_t(cx1_ - cx0_) * 2);
         return;
     }
     // Block-linear rows are padded, so the pixels are not in the first w*h slots.
-    for (int y = 0; y < h_; y++)
-        for (int x = 0; x < w_; x++) px_[Offset(x, y)] = 0;
+    for (int y = cy0_; y < cy1_; y++)
+        for (int x = cx0_; x < cx1_; x++) px_[Offset(x, y)] = 0;
 }
 
 void Canvas::SetClip(int x, int y, int w, int h) {
@@ -167,6 +167,19 @@ void Canvas::FillRoundRect(float x, float y, float w, float h, float r, Color c)
     int x0 = std::max(int(std::floor(x)), cx0_), x1 = std::min(int(std::ceil(x + w)), cx1_);
     int y0 = std::max(int(std::floor(y)), cy0_), y1 = std::min(int(std::ceil(y + h)), cy1_);
     float mx = x + w / 2, my = y + h / 2, bx = w / 2, by = h / 2;
+    // Opaque fill: fully covered pixels just take the dithered color.
+    uint16_t pattern[4][4] = {};
+    bool opaque = c.a == 255;
+    if (opaque) {
+        for (int py = 0; py < 4; py++)
+            for (int px = 0; px < 4; px++) {
+                int t = kBayer[py][px];
+                auto q = [t](int v) { return std::min(15, (v * 15 * 16 / 255 + t) / 16); };
+                pattern[py][px] = uint16_t(q(c.r) | (q(c.g) << 4) | (q(c.b) << 8) | (15 << 12));
+            }
+    }
+    // Columns that are fully inside on rows away from the corners.
+    int in0 = int(std::ceil(x)), in1 = int(std::floor(x + w));
     for (int py = y0; py < y1; py++) {
         float fy = py + 0.5f;
         bool cornerRow = fy < y + r || fy > y + h - r;
@@ -174,11 +187,39 @@ void Canvas::FillRoundRect(float x, float y, float w, float h, float r, Color c)
         for (int px = x0; px < x1; px++) {
             float fx = px + 0.5f;
             float cov;
+            int end = std::min(x1, cornerRow ? int(std::floor(x + w - r)) : in1);
             if (cornerRow && (fx < x + r || fx > x + w - r)) {
                 cov = Clamp01(0.5f - RoundBoxDist(fx - mx, fy - my, bx, by, r));
+            } else if (opaque && rowCov >= 1 && px >= in0 && end > px) {
+                // Run to the end of the fully covered span.
+                const uint16_t* pat = pattern[py & 3];
+                for (; px < end; px++) px_[Offset(px, py)] = pat[px & 3];
+                px--;
+                continue;
             } else {
                 cov = std::min(rowCov, Clamp01(bx - std::fabs(fx - mx) + 0.5f));
             }
+            if (cov > 0) Blend(px, py, c, int(cov * 255 + 0.5f));
+        }
+    }
+}
+
+void Canvas::FillCircleInRoundRect(float cx, float cy, float cr, float x, float y, float w, float h, float r,
+                                   Color c) {
+    if (w <= 0 || h <= 0 || cr <= 0 || c.a == 0) return;
+    r = std::min({r, w / 2, h / 2});
+    int x0 = std::max({int(std::floor(x)), int(std::floor(cx - cr)), cx0_});
+    int x1 = std::min({int(std::ceil(x + w)), int(std::ceil(cx + cr)), cx1_});
+    int y0 = std::max({int(std::floor(y)), int(std::floor(cy - cr)), cy0_});
+    int y1 = std::min({int(std::ceil(y + h)), int(std::ceil(cy + cr)), cy1_});
+    float mx = x + w / 2, my = y + h / 2;
+    for (int py = y0; py < y1; py++) {
+        float fy = py + 0.5f;
+        for (int px = x0; px < x1; px++) {
+            float fx = px + 0.5f;
+            float inCircle = Clamp01(cr - std::sqrt((fx - cx) * (fx - cx) + (fy - cy) * (fy - cy)) + 0.5f);
+            if (inCircle <= 0) continue;
+            float cov = std::min(inCircle, Clamp01(0.5f - RoundBoxDist(fx - mx, fy - my, w / 2, h / 2, r)));
             if (cov > 0) Blend(px, py, c, int(cov * 255 + 0.5f));
         }
     }
@@ -210,6 +251,8 @@ void Canvas::StrokeRoundRect(float x, float y, float w, float h, float r, float 
 }
 
 float Canvas::Text(float x, float y, std::string_view s, Font f, float px, Color c) {
+    // Nothing of it inside the clip (partial redraws): just the width.
+    if (y - px * 1.2f > cy1_ || y + px * 0.4f < cy0_) return Measure(s, f, px);
     float pen = x;
     uint32_t prev = 0;
     int by = int(std::lround(y));

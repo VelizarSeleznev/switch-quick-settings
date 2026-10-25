@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -24,6 +25,9 @@ constexpr const char* kPauseFlag = "sdmc:/config/bt-autoconnect/paused";
 constexpr const char* kTargetFile = "sdmc:/config/bt-autoconnect/last_device.txt";
 constexpr const char* kAutoconnectNsp = "sdmc:/atmosphere/contents/420000000000BA7C/exefs.nsp";
 constexpr const char* kOverlayDir = "sdmc:/switch/.overlays";
+// Our own airplane mode flag (HOS has no setting for "in airplane mode").
+constexpr const char* kQsDir = "sdmc:/config/quick-settings";
+constexpr const char* kAirplaneFlag = "sdmc:/config/quick-settings/airplane";
 
 // Boost targets: the fastest clocks Nintendo itself uses (sys-clk further caps
 // the GPU in handheld mode).
@@ -169,13 +173,26 @@ void SwitchSystem::Refresh(State& s) {
     if (g_services.bt) {
         bool radio = true;
         if (R_SUCCEEDED(btmsysGetRadioOnOff(&radio))) s.radioOn = radio;
+        // Headphones asked for while the radio was still off: connect once it is up.
+        if (connectAfterRadio_ && radio) {
+            connectAfterRadio_ = false;
+            ConnectTarget(s);
+        } else if (connectAfterRadio_ && armTicksToNs(armGetSystemTick()) > connectDeadline_) {
+            connectAfterRadio_ = false;
+            Log("headphones: Bluetooth radio did not come up");
+        }
 
         BtmAudioDevice devs[4];
         int n = ConnectedDevices(devs, 4);
-        s.hpConnected = n > 0;
         bool connecting = false;
         btmsysIsConnectingAudioDevice(&connecting);
-        s.hpConnecting = connecting && !s.hpConnected;
+        int hpState = (n > 0 ? 1 : 0) | (connecting ? 2 : 0) | (radio ? 4 : 0);
+        if (hpState != lastHpState_) {
+            lastHpState_ = hpState;
+            Log("headphones state: connected=%d connecting=%d radio=%d", n, connecting, radio);
+        }
+        s.hpConnected = n > 0;
+        s.hpConnecting = (connecting && !s.hpConnected) || connectAfterRadio_;
         if (n > 0) {
             s.hpName = DeviceName(devs[0]);
         } else {
@@ -200,7 +217,9 @@ void SwitchSystem::Refresh(State& s) {
         NifmInternetConnectionStatus status;
         s.wifiOnline = R_SUCCEEDED(nifmGetInternetConnectionStatus(&type, &strength, &status)) &&
                        status == NifmInternetConnectionStatus_Connected;
+        s.wifiSignal = s.wifiOnline ? int(std::min<u32>(strength, 3)) : 0;
         s.ssid.clear();
+        s.ip.clear();
         static NifmNetworkProfileData profile;
         if (s.wifiOnline && R_SUCCEEDED(nifmGetCurrentNetworkProfile(&profile))) {
             const auto& w = profile.wireless_setting_data;
@@ -208,8 +227,35 @@ void SwitchSystem::Refresh(State& s) {
             if (const void* nul = memchr(w.ssid, 0, n)) n = size_t(static_cast<const char*>(nul) - w.ssid);
             s.ssid.assign(w.ssid, n);
         }
+        u32 ip = 0;
+        if (s.wifiOnline && R_SUCCEEDED(nifmGetCurrentIpAddress(&ip)) && ip) {
+            char buf[16];
+            snprintf(buf, sizeof buf, "%u.%u.%u.%u", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
+            s.ip = buf;
+        }
     }
-    s.airplane = s.wifiReady && s.btReady && !s.wifiOn && !s.radioOn;
+    s.airplane = Exists(kAirplaneFlag);
+
+    s.volReady = false;
+    if (g_services.audctl && !volRangeRead_) {
+        volRangeRead_ = true;
+        s32 lo = 0, hi = 0;
+        if (R_SUCCEEDED(audctlGetTargetVolumeMin(&lo)) && R_SUCCEEDED(audctlGetTargetVolumeMax(&hi))) {
+            volMin_ = lo;
+            volMax_ = hi;
+        }
+        Log("volume range %d..%d", volMin_, volMax_);
+    }
+    if (g_services.audctl) {
+        AudioTarget target = AudioTarget_Invalid;
+        s32 v = 0;
+        if (R_SUCCEEDED(audctlGetActiveOutputTarget(&target)) && target != AudioTarget_Invalid &&
+            R_SUCCEEDED(audctlGetTargetVolume(&v, target)) && volMax_ > volMin_) {
+            s.volReady = true;
+            s.volSteps = volMax_ - volMin_;
+            s.volume = float(v - volMin_) / float(volMax_ - volMin_);
+        }
+    }
 
     ConnectSysclk();
     s.sysclkReady = false;
@@ -224,7 +270,17 @@ void SwitchSystem::Refresh(State& s) {
             s.pcbTemp = int(ctx.temps[SysClkThermalSensor_PCB] / 1000);
             s.powerMw = ctx.power[SysClkPowerSensor_Now];
             s.powerKnown = true;
-            s.boost = ctx.overrideFreqs[SysClkModule_CPU] != 0;
+            bool boost = ctx.overrideFreqs[SysClkModule_CPU] != 0;
+            if (boost != lastBoost_ || ctx.freqs[SysClkModule_CPU] != lastCpuHz_) {
+                lastBoost_ = boost;
+                lastCpuHz_ = ctx.freqs[SysClkModule_CPU];
+                Log("sys-clk: enabled=%d override=%u/%u/%u set=%u/%u/%u real=%u/%u/%u MHz profile=%d app=%016llx",
+                    ctx.enabled, ctx.overrideFreqs[0] / 1000000, ctx.overrideFreqs[1] / 1000000,
+                    ctx.overrideFreqs[2] / 1000000, ctx.freqs[0] / 1000000, ctx.freqs[1] / 1000000,
+                    ctx.freqs[2] / 1000000, s.cpuMHz, s.gpuMHz, s.memMHz, int(ctx.profile),
+                    (unsigned long long)ctx.applicationId);
+            }
+            s.boost = boost;
             s.docked = ctx.profile == SysClkProfile_Docked;
         } else {
             sysclkIpcExit();
@@ -236,8 +292,6 @@ void SwitchSystem::Refresh(State& s) {
     if (g_services.lbl) {
         float b = s.brightness;
         if (R_SUCCEEDED(lblGetCurrentBrightnessSetting(&b))) s.brightness = b;
-        bool a = false;
-        if (R_SUCCEEDED(lblIsAutoBrightnessControlEnabled(&a))) s.autoBrightness = a;
     }
 }
 
@@ -277,17 +331,7 @@ void SwitchSystem::ListOverlays(State& s) {
     }
 }
 
-void SwitchSystem::SetHeadphones(State& s, bool on) {
-    if (!g_services.bt) return;
-    if (!on) {
-        SetPaused(true);
-        DisconnectAll();
-        s.hpConnected = s.hpConnecting = false;
-        s.hpPaused = true;
-        return;
-    }
-    SetPaused(false);
-    s.hpPaused = false;
+void SwitchSystem::ConnectTarget(State& s) {
     BtdrvAddress target = {};
     std::string name;
     bool have = ReadTarget(target, name);
@@ -296,8 +340,35 @@ void SwitchSystem::SetHeadphones(State& s, bool on) {
         have = true;
     }
     Result rc = have ? btmsysConnectAudioDevice(target) : 0;
-    Log("headphones on: target=%d rc=0x%X", have, rc);
+    Log("headphones connect: target=%d rc=0x%X", have, rc);
     if (have && R_SUCCEEDED(rc)) s.hpConnecting = true;
+}
+
+void SwitchSystem::SetHeadphones(State& s, bool on) {
+    if (!g_services.bt) return;
+    if (!on) {
+        SetPaused(true);
+        DisconnectAll();
+        Log("headphones off: disconnect, autoconnect paused");
+        s.hpConnected = s.hpConnecting = false;
+        s.hpPaused = true;
+        return;
+    }
+    SetPaused(false);
+    s.hpPaused = false;
+    bool radio = true;
+    btmsysGetRadioOnOff(&radio);
+    if (!radio) {
+        // Airplane mode: bring Bluetooth back first; Refresh connects once it is up.
+        Result rc = btmsysEnableRadio();
+        if (g_services.setsys) setsysSetBluetoothEnableFlag(true);
+        Log("headphones on: Bluetooth radio on rc=0x%X", rc);
+        connectAfterRadio_ = R_SUCCEEDED(rc);
+        connectDeadline_ = armTicksToNs(armGetSystemTick()) + 10'000'000'000ULL;
+        s.hpConnecting = connectAfterRadio_;
+        return;
+    }
+    ConnectTarget(s);
 }
 
 void SwitchSystem::ToggleDevice(State& s, const AudioDevice& d) {
@@ -323,13 +394,26 @@ void SwitchSystem::ToggleDevice(State& s, const AudioDevice& d) {
 }
 
 void SwitchSystem::SetWifi(State& s, bool on) {
-    if (g_services.nifm && R_SUCCEEDED(nifmSetWirelessCommunicationEnabled(on))) s.wifiOn = on;
+    if (!g_services.nifm) return;
+    Result rc = nifmSetWirelessCommunicationEnabled(on);
+    if (g_services.setsys) setsysSetWirelessLanEnableFlag(on);
+    Log("wifi %s rc=0x%X", on ? "on" : "off", rc);
+    if (R_SUCCEEDED(rc)) s.wifiOn = on;
 }
 
-// Airplane mode: Wi-Fi and the Bluetooth radio off, both also stored in
-// system settings like the HOME menu's own flight mode toggle does.
+// Airplane mode turns Wi-Fi and the Bluetooth radio off (also in system
+// settings, so it lasts across a reboot) and remembers that it is on; while
+// it is on, Wi-Fi or headphones can be turned back on one by one.
 void SwitchSystem::SetAirplane(State& s, bool on) {
     if (!g_services.nifm || !g_services.bt) return;
+    if (on) {
+        mkdir("sdmc:/config", 0777);
+        mkdir(kQsDir, 0777);
+        if (FILE* f = fopen(kAirplaneFlag, "w")) fclose(f);
+    } else {
+        remove(kAirplaneFlag);
+    }
+    connectAfterRadio_ = false;
     Result wifi = nifmSetWirelessCommunicationEnabled(!on);
     Result radio = on ? btmsysDisableRadio() : btmsysEnableRadio();
     if (g_services.setsys) {
@@ -339,7 +423,7 @@ void SwitchSystem::SetAirplane(State& s, bool on) {
     Log("airplane %s: wifi rc=0x%X radio rc=0x%X", on ? "on" : "off", wifi, radio);
     if (R_SUCCEEDED(wifi)) s.wifiOn = !on;
     if (R_SUCCEEDED(radio)) s.radioOn = !on;
-    s.airplane = !s.wifiOn && !s.radioOn;
+    s.airplane = on;
 }
 
 void SwitchSystem::SetBoost(State& s, bool on) {
@@ -347,7 +431,8 @@ void SwitchSystem::SetBoost(State& s, bool on) {
     for (int m = 0; m < SysClkModule_EnumMax; m++) {
         auto module = SysClkModule(m);
         if (!on) {
-            sysclkIpcRemoveOverride(module);
+            Result rc = sysclkIpcRemoveOverride(module);
+            Log("boost %s off rc=0x%X", sysclkFormatModule(module, false), rc);
             continue;
         }
         u32 freqs[SYSCLK_FREQ_LIST_MAX];
@@ -374,10 +459,18 @@ void SwitchSystem::SetBrightness(State& s, float v, bool commit) {
     if (commit) lblSaveCurrentSetting();
 }
 
-void SwitchSystem::SetAutoBrightness(State& s, bool on) {
-    if (!g_services.lbl) return;
-    if (R_SUCCEEDED(on ? lblEnableAutoBrightnessControl() : lblDisableAutoBrightnessControl())) s.autoBrightness = on;
-    lblSaveCurrentSetting();
+void SwitchSystem::SetVolume(State& s, float v) {
+    if (!g_services.audctl || volMax_ <= volMin_) return;
+    AudioTarget target = AudioTarget_Invalid;
+    if (R_FAILED(audctlGetActiveOutputTarget(&target)) || target == AudioTarget_Invalid) return;
+    s32 vol = volMin_ + s32(std::lround(std::clamp(v, 0.f, 1.f) * float(volMax_ - volMin_)));
+    s32 now = -1;
+    audctlGetTargetVolume(&now, target);
+    if (vol != now) {
+        Result rc = audctlSetTargetVolume(target, vol);
+        if (R_FAILED(rc)) Log("volume %d on target %d rc=0x%X", vol, int(target), rc);
+    }
+    s.volume = v;
 }
 
 static void Shutdown(bool reboot) {

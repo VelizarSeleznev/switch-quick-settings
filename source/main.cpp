@@ -326,20 +326,6 @@ void SaveSide(Side side) {
     }
 }
 
-bool SystemIsRussian() {
-    u64 code = 0;
-    SetLanguage lang;
-    bool ru = false;
-    WithSm([&] {
-        if (R_SUCCEEDED(setInitialize())) {
-            ru = R_SUCCEEDED(setGetSystemLanguage(&code)) && R_SUCCEEDED(setMakeLanguage(code, &lang)) &&
-                 lang == SetLanguage_RU;
-            setExit();
-        }
-    });
-    return ru;
-}
-
 }  // namespace
 
 extern "C" {
@@ -362,10 +348,12 @@ void __appInit(void) {
         g_services.nifm = R_SUCCEEDED(nifmInitialize(NifmServiceType_Admin));
         g_services.lbl = R_SUCCEEDED(lblInitialize());
         g_services.setsys = R_SUCCEEDED(setsysInitialize());
+        g_services.audctl = R_SUCCEEDED(audctlInitialize());
     });
 }
 
 void __appExit(void) {
+    if (g_services.audctl) audctlExit();
     if (g_services.setsys) setsysExit();
     if (g_services.lbl) lblExit();
     if (g_services.nifm) nifmExit();
@@ -393,15 +381,15 @@ int main(int argc, char** argv) {
     screen.Init();
     Canvas canvas(kFbW, kFbH);
     SwitchSystem sys;
-    Ui ui(sys, SystemIsRussian());
+    Ui ui(sys);
     // Fill the state once so the first open has something to show right away.
     sys.Refresh(ui.state());
     sys.ListOverlays(ui.state());
     Log("start: HOS %u.%u.%u, skipCombo=%d, combo=0x%llx, services time=%d psm=%d apm=%d bt=%d nifm=%d lbl=%d "
-        "setsys=%d",
+        "setsys=%d audctl=%d",
         HOSVER_MAJOR(hosversionGet()), HOSVER_MINOR(hosversionGet()), HOSVER_MICRO(hosversionGet()), openNow,
         (unsigned long long)g.combo, g_services.time, g_services.psm, g_services.apm, g_services.bt, g_services.nifm,
-        g_services.lbl, g_services.setsys);
+        g_services.lbl, g_services.setsys, g_services.audctl);
 
     Thread input;
     threadCreate(&input, InputThread, nullptr, nullptr, 0x4000, 0x2c, -2);

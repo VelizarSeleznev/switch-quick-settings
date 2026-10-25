@@ -55,6 +55,7 @@ public:
     int W() const { return w_; }
     int H() const { return h_; }
 
+    // Makes the clip area transparent.
     void Clear();
     // Copies a linear w*h image shifted right by dx pixels; uncovered pixels become transparent.
     void Blit(const uint16_t* src, int dx);
@@ -65,6 +66,8 @@ public:
     void FillRoundRect(float x, float y, float w, float h, float r, Color c);
     void StrokeRoundRect(float x, float y, float w, float h, float r, float t, Color c);
     void FillCircle(float cx, float cy, float r, Color c) { FillRoundRect(cx - r, cy - r, 2 * r, 2 * r, r, c); }
+    // The part of a circle that lies inside a rounded rect (a press ripple).
+    void FillCircleInRoundRect(float cx, float cy, float cr, float x, float y, float w, float h, float r, Color c);
 
     // Draws UTF-8 text with its baseline at y; returns the advance width.
     float Text(float x, float y, std::string_view s, Font f, float px, Color c);

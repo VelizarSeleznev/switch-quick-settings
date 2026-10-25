@@ -9,7 +9,8 @@ namespace qs {
 
 // Services opened in __appInit; false when one could not be opened.
 struct Services {
-    bool time = false, psm = false, apm = false, bt = false, nifm = false, lbl = false, setsys = false;
+    bool time = false, psm = false, apm = false, bt = false, nifm = false, lbl = false, setsys = false,
+         audctl = false;
 };
 extern Services g_services;
 
@@ -39,13 +40,22 @@ public:
     void SetBoost(State& s, bool on) override;
     void SetChargingEnabled(State& s, bool on) override;
     void SetBrightness(State& s, float v, bool commit) override;
-    void SetAutoBrightness(State& s, bool on) override;
+    void SetVolume(State& s, float v) override;
     void Reboot() override;
     void PowerOff() override;
     void LaunchOverlay(const OverlayEntry& o) override;
 
 private:
     void ConnectSysclk();
+    void ConnectTarget(State& s);
+
+    bool connectAfterRadio_ = false;  // headphones turned on in airplane mode
+    uint64_t connectDeadline_ = 0;
+    bool volRangeRead_ = false;
+    s32 volMin_ = 0, volMax_ = 0;
+    int lastHpState_ = -1;            // for logging changes only
+    bool lastBoost_ = false;
+    uint32_t lastCpuHz_ = 0;
 
     bool sysclk_ = false;
     uint64_t sysclkTry_ = 0;

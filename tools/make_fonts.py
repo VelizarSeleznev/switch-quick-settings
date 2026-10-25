@@ -22,16 +22,16 @@ OUT = os.path.join(ROOT, "source", "fonts_data.inc")
 # Latin-1, Cyrillic, general punctuation, degree, arrows used in labels.
 TEXT_RANGES = [(0x20, 0x7E), (0xA0, 0xFF), (0x400, 0x45F), (0x2010, 0x2027), (0x2030, 0x203A), (0x2190, 0x2193)]
 
-# Material Symbols code points the UI draws (see source/icons.hpp).
+# Material Symbols code points the UI draws (namespace icon in source/ui.cpp).
 ICONS = {
     "headphones": 0xF01F, "headset_off": 0xE33A, "wifi": 0xE63E, "wifi_off": 0xE648,
-    "brightness_auto": 0xE1AB, "flight": 0xE539,
-    "speed": 0xE9E4, "battery_charging_full": 0xE1A3,
-    "battery_full": 0xE1A5, "light_mode": 0xE518, "brightness_low": 0xE1AD,
+    "network_wifi_1_bar": 0xEBE4, "network_wifi_2_bar": 0xEBD6, "network_wifi_3_bar": 0xEBE1,
+    "signal_wifi_4_bar": 0xF065, "lan": 0xEB2F, "flight": 0xE539,
+    "speed": 0xE9E4, "battery_charging_full": 0xE1A3, "light_mode": 0xE518,
+    "volume_up": 0xE050, "volume_down": 0xE04D, "volume_off": 0xE04F,
     "power_settings_new": 0xF8C7, "restart_alt": 0xF053, "chevron_right": 0xE5CC,
-    "check": 0xE668, "arrow_back": 0xE5C4, "layers": 0xE53B, "thermostat": 0xF076,
-    "bolt": 0xEA0B, "close": 0xE5CD, "bluetooth": 0xE1A7, "sync": 0xE627,
-    "block": 0xF08C, "add": 0xE145, "refresh": 0xE5D5, "info": 0xE88E,
+    "arrow_back": 0xE5C4, "layers": 0xE53B, "bolt": 0xEA0B,
+    "bluetooth": 0xE1A7, "bluetooth_disabled": 0xE1A9,
 }
 
 
